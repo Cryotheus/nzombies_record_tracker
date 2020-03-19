@@ -23,15 +23,12 @@ if SERVER then
 	local map_read = file.Read(map_path, "DATA")
 	local map_record_beaten = false
 	local player_tracker = {}
-	local ply_meta = FindMetaTable("Player")
-	local pretty_print = true
+	local pretty_print = false
 	
-	if global_read then global_wave = tonumber(global_read) 
+	if global_read then global_wave = tonumber(global_read)
 	else global_wave = 0 end
 	
-	if map_read then
-		--
-		map_data = util.JSONToTable(map_read)
+	if map_read then map_data = util.JSONToTable(map_read)
 	else
 		map_data.contributors = {}
 		map_data.wave = 0
@@ -48,11 +45,21 @@ if SERVER then
 		net.Broadcast()
 	end
 	
+	local function update_access_index()
+		--updates the map index
+		--the map index keeps track of the record for each map, this is used for the gui
+		index_data.maps[current_map] = math.floor(round)
+		
+		file.Write(index_path, util.TableToJSON(index_data, pretty_print))
+	end
+	
 	local function update_data(round, path)
 		--save the record
 		local data = {}
 		data.contributors = table.Copy(player_tracker)
-		data.wave = round
+		data.wave = math.floor(round)
+		
+		update_access_index(round)
 		
 		--we use their steam id 64 so we can load their avatars for the gui
 		--we also concatenate S to their IDs to make sure they are kept as strings when we decode the JSON
@@ -67,29 +74,17 @@ if SERVER then
 	local function update_global(round)
 		--saves the highest round reached to a single file
 		--we could probably store this in the index to reduce the file count
-		file.Write(global_path, tostring(global_wave))
-	end
-	
-	local function update_index()
-		--updates the map index
-		--the map index keeps track of the record for each map, this is used for the gui
-		index_data.maps[current_map] = math.floor(map_data.wave)
-		
-		file.Write(index_path, util.TableToJSON(index_data, pretty_print))
+		file.Write(global_path, tostring(round))
 	end
 	
 	if index_read then
-		--
 		index_data = util.JSONToTable(index_read)
 		
-		if not index_data.maps[current_map] then
-			update_index()
-		end
+		if not index_data.maps[current_map] then update_access_index() end
 	else
-		--we use the update_index() function here so we have to do it after we declare the function
 		index_data.maps = {}
 		
-		update_index()
+		update_access_index()
 	end
 	
 	concommand.Add("nz_rectracker_gui", function(ply)
@@ -99,7 +94,7 @@ if SERVER then
 		net.Send(ply)
 	end, nil, "Opens the gloryboard for the highest waves beaten.")
 	
-	cvars.AddChangeCallback("nz_progbar_enabled", function(name, old_value, new_value)
+	cvars.AddChangeCallback("nz_rectracker_kill_threshold", function(name, old_value, new_value)
 		--we don't want to read the convar every time a player disconnects, so we will just store the value
 		kill_threshold = new_value
 	end)
@@ -112,7 +107,6 @@ if SERVER then
 			map_data = update_data(round, map_path)
 			
 			update_global(round)
-			update_index()
 			
 			if not global_record_beaten then
 				map_record_beaten = true
@@ -122,8 +116,6 @@ if SERVER then
 			end
 		elseif round > map_data.wave then
 			map_data = update_data(round, map_path)
-			
-			update_index()
 			
 			if not map_record_beaten then
 				map_record_beaten = true
@@ -135,8 +127,6 @@ if SERVER then
 	hook.Add("PlayerDisconnected", "nz_record_tracker_disc_hook", function(ply)
 		--keep track of players who contributed but left before the record was made
 		--they will only be recorded if they had passed the kill_threshold
-		print("nzRound.Number " .. nzRound.Number)
-		
 		local kills = ply:GetTotalKills()
 		
 		if kills and kills > kill_threshold then player_tracker["S" .. ply:SteamID64()] = {["kills"] = ply:GetTotalKills(), ["name"] = ply:Nick(), ["wave"] = nzRound.Number} end
@@ -161,9 +151,7 @@ if SERVER then
 			net.Start("record_tracker_gui_map")
 			net.WriteTable(filtered_data)
 			net.Send(ply)
-		else
-			print("[nZombies Record Tracker] CRITICAL ERROR! Could not read '" .. check_map_path .. "'. Request was sent from \"" .. ply:Nick() .. "\" [" .. ply:SteamID() .. "]")
-		end
+		else print("[nZombies Record Tracker] CRITICAL ERROR! Could not read '" .. check_map_path .. "'. Request was sent from \"" .. ply:Nick() .. "\" [" .. ply:SteamID() .. "]\nThis is likely caused by a person trying to view a map's record when one has not yet been made.") end
 	end)
 elseif CLIENT then
 	local function activate_sound()
