@@ -453,7 +453,7 @@ elseif CLIENT then
 		
 		--hehehehehe cheeeese
 		chat_button.DoClick = function() RunConsoleCommand("nz_rectracker_gui") end
-	end
+	end)
 end
 
 game.AddParticles("particles/explosion_copy.pcf")
