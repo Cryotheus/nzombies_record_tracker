@@ -4,7 +4,7 @@ local map_data = {}
 
 if SERVER then
 	AddCSLuaFile()
-	
+	CreateConVar("nz_rectracker_kill_threshold", "100", {FCVAR_ARCHIVE, FCVAR_NEVER_AS_STRING}, "The amount of kills that must be passed for a player to be recorded if they leave before the record is made.", 0, 2147483647)
 	file.CreateDir("nz_records/meta")
 	resource.AddWorkshop("1930243232")
 	util.AddNetworkString("record_tracker_congrats")
@@ -12,20 +12,16 @@ if SERVER then
 	util.AddNetworkString("record_tracker_gui_map")
 	
 	local current_map = game.GetMap()
-	
 	local global_path = "nz_records/meta/global.txt"
 	local global_read = file.Read(global_path, "DATA")
 	local global_record_beaten = false
 	local global_wave = 0
-	
 	local index_path = "nz_records/meta/index.json"
 	local index_read = file.Read(index_path, "DATA")
 	local kill_threshold = 100
-	
 	local map_path = "nz_records/" .. current_map .. ".json"
 	local map_read = file.Read(map_path, "DATA")
 	local map_record_beaten = false
-	
 	local player_tracker = {}
 	local ply_meta = FindMetaTable("Player")
 	local pretty_print = true
@@ -46,6 +42,7 @@ if SERVER then
 		net.Start("record_tracker_congrats")
 		net.WriteBool(global_record_beaten)
 		
+		--if they didn't beat the global record, tell them what it is
 		if not global_record_beaten then net.WriteUInt(global_data.wave, 32) end
 		
 		net.Broadcast()
@@ -59,9 +56,8 @@ if SERVER then
 		
 		--we use their steam id 64 so we can load their avatars for the gui
 		--we also concatenate S to their IDs to make sure they are kept as strings when we decode the JSON
-		for _, ply in pairs(player.GetHumans()) do
-			data.contributors["S" .. ply:SteamID64()] = {["kills"] = math.floor(ply:GetTotalKills()), ["name"] = ply:Nick()}
-		end
+		--should probably be /async/!
+		for _, ply in pairs(player.GetHumans()) do data.contributors["S" .. ply:SteamID64()] = {["kills"] = math.floor(ply:GetTotalKills()), ["name"] = ply:Nick()} end
 		
 		file.Write(path, util.TableToJSON(data, pretty_print))
 		
@@ -69,11 +65,14 @@ if SERVER then
 	end
 	
 	local function update_global(round)
-		--
+		--saves the highest round reached to a single file
+		--we could probably store this in the index to reduce the file count
 		file.Write(global_path, tostring(global_wave))
 	end
 	
 	local function update_index()
+		--updates the map index
+		--the map index keeps track of the record for each map, this is used for the gui
 		index_data.maps[current_map] = math.floor(map_data.wave)
 		
 		file.Write(index_path, util.TableToJSON(index_data, pretty_print))
@@ -93,12 +92,17 @@ if SERVER then
 		update_index()
 	end
 	
-	concommand.Add("nz_record_tracker_gui", function(ply)
+	concommand.Add("nz_rectracker_gui", function(ply)
 		--send the record data
 		net.Start("record_tracker_gui")
 		net.WriteTable(index_data)
 		net.Send(ply)
 	end, nil, "Opens the gloryboard for the highest waves beaten.")
+	
+	cvars.AddChangeCallback("nz_progbar_enabled", function(name, old_value, new_value)
+		--we don't want to read the convar every time a player disconnects, so we will just store the value
+		kill_threshold = new_value
+	end)
 	
 	hook.Add("OnRoundCreative", "prog_bar_onroundend_hook", function() player_tracker = {} end)
 	hook.Add("OnRoundEnd", "prog_bar_onroundend_hook", function() player_tracker = {} end)
@@ -128,17 +132,18 @@ if SERVER then
 			end
 		end
 	end)
-		hook.Add("PlayerDisconnected", "nz_record_tracker_disc_hook", function(ply)
+	hook.Add("PlayerDisconnected", "nz_record_tracker_disc_hook", function(ply)
+		--keep track of players who contributed but left before the record was made
+		--they will only be recorded if they had passed the kill_threshold
 		print("nzRound.Number " .. nzRound.Number)
 		
 		local kills = ply:GetTotalKills()
 		
-		if kills and kills > kill_threshold then
-			player_tracker["S" .. ply:SteamID64()] = {["kills"] = ply:GetTotalKills(), ["name"] = ply:Nick(), ["wave"] = nzRound.Number}
-		end
+		if kills and kills > kill_threshold then player_tracker["S" .. ply:SteamID64()] = {["kills"] = ply:GetTotalKills(), ["name"] = ply:Nick(), ["wave"] = nzRound.Number} end
 	end)
 	
 	net.Receive("record_tracker_gui_map", function(len, ply)
+		--recieved when a person selects a map to see the record
 		local check_map_name = net.ReadString()
 		local check_map_path = "nz_records/" .. check_map_name .. ".json"
 		local check_map_read = file.Read(check_map_path, "DATA")
@@ -148,6 +153,7 @@ if SERVER then
 			local filtered_data = table.Copy(decoded)
 			filtered_data.contributors = {}
 			
+			--should probably be /async/!
 			for k, v in pairs(decoded.contributors) do
 				filtered_data.contributors[string.sub(k, 2)] = v
 			end
@@ -156,7 +162,7 @@ if SERVER then
 			net.WriteTable(filtered_data)
 			net.Send(ply)
 		else
-			print("[nZombies Record Tracker] CRITICAL ERROR! Could not read '" .. check_map_path .. "'. Request was sent from ")
+			print("[nZombies Record Tracker] CRITICAL ERROR! Could not read '" .. check_map_path .. "'. Request was sent from \"" .. ply:Nick() .. "\" [" .. ply:SteamID() .. "]")
 		end
 	end)
 elseif CLIENT then
@@ -446,9 +452,8 @@ elseif CLIENT then
 		end
 		
 		--hehehehehe cheeeese
-		chat_button.DoClick = function() RunConsoleCommand("nz_record_tracker_gui") end
-	end)
-end
+		chat_button.DoClick = function() RunConsoleCommand("nz_rectracker_gui") end
+	endd
 
 game.AddParticles("particles/explosion_copy.pcf")
 PrecacheParticleSystem("bday_confetti")
