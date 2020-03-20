@@ -1,0 +1,5 @@
+# batch and exports
+*.bat
+*.gma
+*.tar.gz
+*.zip
