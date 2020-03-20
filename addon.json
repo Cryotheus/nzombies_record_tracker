@@ -1,0 +1,16 @@
+{
+	"title"		:	"nZombies Wave Record Tracker",
+	"type"		:	"ServerContent",
+	"tags"		:	[ "fun" ],
+	"ignore"	:
+	[
+		"*.bat",
+		"*.gma",
+		"*.pdn",
+		"*.txt",
+		"*.zip",
+		".git*",
+		"license",
+		"readme.md"
+	]
+}

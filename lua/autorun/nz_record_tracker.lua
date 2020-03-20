@@ -96,7 +96,7 @@ if SERVER then
 	
 	cvars.AddChangeCallback("nz_rectracker_kill_threshold", function(name, old_value, new_value)
 		--we don't want to read the convar every time a player disconnects, so we will just store the value
-		kill_threshold = new_value
+		kill_threshold = tonumber(new_value) or 100
 	end)
 	
 	hook.Add("OnRoundCreative", "prog_bar_onroundend_hook", function() player_tracker = {} end)
