@@ -1,0 +1,4 @@
+# luarocks build files
+*.bat
+*.tar.gz
+*.zip
