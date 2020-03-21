@@ -45,10 +45,10 @@ if SERVER then
 		net.Broadcast()
 	end
 	
-	local function update_access_index()
+	local function update_access_index(round)
 		--updates the map index
 		--the map index keeps track of the record for each map, this is used for the gui
-		index_data.maps[current_map] = math.floor(round)
+		index_data.maps[current_map] = math.floor(round or 0)
 		
 		file.Write(index_path, util.TableToJSON(index_data, pretty_print))
 	end
@@ -80,7 +80,7 @@ if SERVER then
 	if index_read then
 		index_data = util.JSONToTable(index_read)
 		
-		if not index_data.maps[current_map] then update_access_index() end
+		if not index_data.maps[current_map] then update_access_index(round) end
 	else
 		index_data.maps = {}
 		
