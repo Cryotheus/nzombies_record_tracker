@@ -40,7 +40,7 @@ if SERVER then
 		net.WriteBool(global_record_beaten)
 		
 		--if they didn't beat the global record, tell them what it is
-		if not global_record_beaten then net.WriteUInt(global_data.wave, 32) end
+		if not global_record_beaten then net.WriteUInt(global_wave, 32) end
 		
 		net.Broadcast()
 	end
@@ -80,7 +80,7 @@ if SERVER then
 	if index_read then
 		index_data = util.JSONToTable(index_read)
 		
-		if not index_data.maps[current_map] then update_access_index(round) end
+		if not index_data.maps[current_map] then update_access_index() end
 	else
 		index_data.maps = {}
 		
