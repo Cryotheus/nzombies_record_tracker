@@ -12,6 +12,7 @@ if SERVER then
 	util.AddNetworkString("record_tracker_gui_map")
 	
 	local current_map = game.GetMap()
+	local dictionaries = file.Find("nz_record_tracker_lang/*", "LUA", "nameasc")
 	local global_path = "nz_records/meta/global.txt"
 	local global_read = file.Read(global_path, "DATA")
 	local global_record_beaten = false
@@ -24,6 +25,8 @@ if SERVER then
 	local map_record_beaten = false
 	local player_tracker = {}
 	local pretty_print = false
+	
+	for _, dictionary in pairs(dictionaries) do AddCSLuaFile("nz_record_tracker_lang/" .. dictionary) end
 	
 	if global_read then global_wave = tonumber(global_read)
 	else global_wave = 0 end
@@ -171,6 +174,24 @@ elseif CLIENT then
 	local scr_h = 0
 	local scr_w = 0
 	
+	--cache colors and functions we use for rendering. It saves frames!
+	--as a wise man once said, C A C H E   E V E R Y T H I N G
+	local color_bright_white = Color(240, 240, 240)
+	local color_bright_white_select = Color(232, 232, 232)
+	local color_dark_white = Color(208, 208, 208)
+	local color_frame_white = Color(224, 224, 224)
+	local color_nazi = Color(131, 41, 41)
+	local color_nazi_select = Color(115, 32, 32)
+	local surf_SetDrawColor = surface.SetDrawColor
+	local surf_DrawRect = surface.DrawRect
+	
+	local current_language = string.lower(GetConVar("cl_language"):GetString())
+	local language_text = {}
+	local language_text_dict = include("nz_record_tracker_lang/_dictionary.lua")
+	
+	if language_text_dict[current_language] then language_text = include(language_text_dict[current_language])
+	else language_text = include(language_text_dict["english"]) end
+	
 	local function calc_vars()
 		scr_h = ScrH()
 		scr_w = ScrW()
@@ -193,18 +214,13 @@ elseif CLIENT then
 		ParticleEffect("bday_confetti", LocalPlayer():OBBCenter() + LocalPlayer():GetPos(), Angle(0, 0, 0))
 	end
 	
-	calc_vars()
+	local function get_lang_text(key, ...)
+		--gets a predefined phrase in the languages scripts and does formatting with varargs
+		if ... then return string.format(language_text[key], ...)
+		else return language_text[key] or ((key or "INVALID-KEY") .. ":" .. (current_language or "INVALID-LANG")) end
+	end
 	
-	--cache colors and functions we use for rendering. It saves frames!
-	--as a wise man once said, C A C H E   E V E R Y T H I N G
-	local color_bright_white = Color(240, 240, 240)
-	local color_bright_white_select = Color(232, 232, 232)
-	local color_dark_white = Color(208, 208, 208)
-	local color_frame_white = Color(224, 224, 224)
-	local color_nazi = Color(131, 41, 41)
-	local color_nazi_select = Color(115, 32, 32)
-	local surf_SetDrawColor = surface.SetDrawColor
-	local surf_DrawRect = surface.DrawRect
+	calc_vars()
 	
 	hook.Add("OnScreenSizeChanged", "prog_bar_screen_res_changed_hook", calc_vars())
 	
@@ -212,8 +228,8 @@ elseif CLIENT then
 		--when a record is beat, check if it was map or global then congratulate accordingly
 		local global_record_beaten = net.ReadBool()
 		
-		if global_record_beaten then chat.AddText(Color(127, 127, 255), "Congratulations, you beat the server's record for highest wave!")
-		else chat.AddText(Color(127, 255, 127), "Congratulations, you beat the map's record for highest wave! Now try to beat the server's all-time record of ", Color(255, 255, 127), net.ReadUInt(32), Color(127, 255, 127), ".") end
+		if global_record_beaten then chat.AddText(Color(127, 127, 255), get_lang_text("CONGRATS_GLOBAL"))
+		else chat.AddText(Color(127, 255, 127), get_lang_text("CONGRATS_MAP", net.ReadUInt(32))) end
 		
 		congratulate()
 	end)
@@ -232,7 +248,7 @@ elseif CLIENT then
 		frame_chooser:SetDraggable(false)
 		frame_chooser:SetPos(frame_x, frame_y)
 		frame_chooser:SetSize(frame_w, frame_h)
-		frame_chooser:SetTitle("Gloryboard")
+		frame_chooser:SetTitle(get_lang_text("GUI_TITLE"))
 		frame_chooser:SetVisible(true)
 		frame_chooser:ShowCloseButton(true)
 		frame_chooser.Paint = function(self, w, h)
@@ -274,7 +290,7 @@ elseif CLIENT then
 			button:Dock(TOP)
 			button:DockMargin(0, 0, scroll_bar_margin, 5)
 			button:SetSize(frame_w - 24, frame_h * 0.1)
-			button:SetText(set[1] .. " - Wave " .. set[2])
+			button:SetText(get_lang_text("GUI_ENTRY", set[1], set[2]))
 			button:SetTextColor(color_nazi)
 			button.Paint = function(self, w, h)
 				if button:IsHovered() then surf_SetDrawColor(color_bright_white_select)
@@ -318,7 +334,7 @@ elseif CLIENT then
 		frame:SetDraggable(false)
 		frame:SetPos(frame_x, frame_y)
 		frame:SetSize(frame_w, frame_h)
-		frame:SetTitle("Gloryboard - " .. chosen_map)
+		frame:SetTitle(get_lang_text("GUI_TITLE_MAP", chosen_map))
 		frame:SetVisible(true)
 		frame:ShowCloseButton(true)
 		frame.Paint = function(self, w, h)
@@ -374,10 +390,7 @@ elseif CLIENT then
 			local button_w, button_h = button:GetSize()
 			local avatar_size = button_h - 10
 			
-			print("Size: " .. button_w .. ", " ..button_h)
-			
 			--{id64, name, kills, wave}
-			
 			avatar:SetSteamID(set[1], 64)
 			avatar:SetPos(5, 5)
 			avatar:SetSize(avatar_size, avatar_size)
@@ -386,7 +399,7 @@ elseif CLIENT then
 			label:SetContentAlignment(4)
 			label:SetPos(button_h, 0)
 			label:SetSize(button_w - button_h, button_h)
-			label:SetText(set[4] and (set[2] .. "\nLeft on wave " .. set[4] .. "\n" .. set[3] .. " kills") or (set[2] .. "\n\n" .. set[3] .. " kills"))
+			label:SetText(set[4] and get_lang_text("GUI_ENTRY_MAP_LEFT", set[2], set[4], set[3]) or get_lang_text("GUI_ENTRY_MAP", set[2], set[3]))
 			
 			if local_player_id == set[1] then
 				label:SetTextColor(color_bright_white)
@@ -415,7 +428,7 @@ elseif CLIENT then
 	concommand.Add("nz_record_tracker_congrats", function()
 		--allows the client to praise themself
 		congratulate()
-	end, _, false, "Gives you the confetti and celebration sounds. Client side only.")
+	end, _, false, get_lang_text("CONGRATS_COMMAND"))
 	
 	hook.Add("FinishChat", "nz_record_tracker_chat_finish", function()
 		--
@@ -428,7 +441,7 @@ elseif CLIENT then
 		local chat_x, chat_y = chat.GetChatBoxPos()
 		
 		chat_button:SetPos(chat_x, chat_y + chat_h + 5)
-		chat_button:SetText("Record Tracker Glory Board")
+		chat_button:SetText(get_lang_text("GUI_BUTTON"))
 		chat_button:SetTextColor(color_bright_white)
 		chat_button:SetSize(chat_w, chat_h * 0.1)
 		
