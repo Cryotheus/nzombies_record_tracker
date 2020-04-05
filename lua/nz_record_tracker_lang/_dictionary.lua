@@ -64,5 +64,10 @@ return {
 	["russian"] = "nz_record_tracker_lang/ru.lua",
 	["russian-ru"] = "nz_record_tracker_lang/ru.lua",
 	["russki"] = "nz_record_tracker_lang/ru.lua",
-	["russki-ru"] = "nz_record_tracker_lang/ru.lua"
+	["russki-ru"] = "nz_record_tracker_lang/ru.lua",
+	
+	["brofist"] = "nz_record_tracker_lang/se.lua",
+	["se"] = "nz_record_tracker_lang/se.lua",
+	["sw"] = "nz_record_tracker_lang/se.lua",
+	["swedish"] = "nz_record_tracker_lang/se.lua"
 }
