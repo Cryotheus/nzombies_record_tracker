@@ -2,6 +2,16 @@ local global_data = {}
 local index_data = {}
 local map_data = {}
 
+--[[
+
+[nZombies Wave Record Tracker] lua/autorun/nz_record_tracker.lua:70: attempt to concatenate a nil value
+1. update_data - lua/autorun/nz_record_tracker.lua:70
+ 2. v - lua/autorun/nz_record_tracker.lua:110
+  3. Call - lua/includes/modules/hook.lua:84
+   4. Prepare - addons/nzombies-master-workshop/gamemodes/nzombies/gamemode/round/sv_round.lua:49
+    5. unknown - addons/nzombies-master-workshop/gamemodes/nzombies/gamemode/round/sv_round.lua:16
+]]
+
 if SERVER then
 	AddCSLuaFile()
 	CreateConVar("nz_rectracker_kill_threshold", "100", {FCVAR_ARCHIVE, FCVAR_NEVER_AS_STRING}, "The amount of kills that must be passed for a player to be recorded if they leave before the record is made.", 0, 2147483647)
@@ -67,7 +77,11 @@ if SERVER then
 		--we use their steam id 64 so we can load their avatars for the gui
 		--we also concatenate S to their IDs to make sure they are kept as strings when we decode the JSON
 		--should probably be /async/!
-		for _, ply in pairs(player.GetHumans()) do data.contributors["S" .. ply:SteamID64()] = {["kills"] = math.floor(ply:GetTotalKills()), ["name"] = ply:Nick()} end
+		--I added the invalid steam id and Invalid name as single player doesn't like SteamID64
+		for _, ply in pairs(player.GetHumans()) do data.contributors["S" .. (ply and ply:SteamID64() or "invalid")] = {
+			["kills"] = math.floor(ply:GetTotalKills()),
+			["name"] = ply and ply:Nick() or "Invalid"}
+		end
 		
 		file.Write(path, util.TableToJSON(data, pretty_print))
 		
@@ -162,7 +176,6 @@ elseif CLIENT then
 		surface.PlaySound("nz_record_tracker/woot_" .. math.random(1, 19) .. ".wav")
 	end
 	
-	local chat_button = nil
 	local chosen_map = ""
 	local frame_chooser = {}
 	local frame_chooser_is_open = false
@@ -185,6 +198,7 @@ elseif CLIENT then
 	local surf_SetDrawColor = surface.SetDrawColor
 	local surf_DrawRect = surface.DrawRect
 	
+	--ghetto language control
 	local current_language = string.lower(GetConVar("cl_language"):GetString())
 	local language_text = {}
 	local language_text_dict = include("nz_record_tracker_lang/_dictionary.lua")
@@ -192,6 +206,7 @@ elseif CLIENT then
 	if language_text_dict[current_language] then language_text = include(language_text_dict[current_language])
 	else language_text = include(language_text_dict["english"]) end
 	
+	--local functions
 	local function calc_vars()
 		scr_h = ScrH()
 		scr_w = ScrW()
@@ -220,10 +235,10 @@ elseif CLIENT then
 		else return language_text[key] or ((key or "INVALID-KEY") .. ":" .. (current_language or "INVALID-LANG")) end
 	end
 	
+	--post function setup
 	calc_vars()
 	
-	hook.Add("OnScreenSizeChanged", "prog_bar_screen_res_changed_hook", calc_vars())
-	
+	--net
 	net.Receive("record_tracker_congrats", function()
 		--when a record is beat, check if it was map or global then congratulate accordingly
 		local global_record_beaten = net.ReadBool()
@@ -425,36 +440,30 @@ elseif CLIENT then
 		frame:MakePopup()
 	end)
 	
+	--concommands
 	concommand.Add("nz_record_tracker_congrats", function()
 		--allows the client to praise themself
 		congratulate()
 	end, _, false, get_lang_text("CONGRATS_COMMAND"))
 	
-	hook.Add("FinishChat", "nz_record_tracker_chat_finish", function()
-		--
-		if chat_button then chat_button:Remove() end
-	end)
+	--hooks
+	hook.Add("OnScreenSizeChanged", "prog_bar_screen_res_changed_hook", calc_vars())
 	
-	hook.Add("StartChat", "nz_record_tracker_chat_start", function()
-		chat_button = vgui.Create("DButton")
-		local chat_w, chat_h = chat.GetChatBoxSize()
-		local chat_x, chat_y = chat.GetChatBoxPos()
-		
-		chat_button:SetPos(chat_x, chat_y + chat_h + 5)
-		chat_button:SetText(get_lang_text("GUI_BUTTON"))
-		chat_button:SetTextColor(color_bright_white)
-		chat_button:SetSize(chat_w, chat_h * 0.1)
-		
-		chat_button.Paint = function(self, w, h) 
-			if chat_button:IsHovered() then surf_SetDrawColor(color_nazi_select)
-			else surf_SetDrawColor(color_nazi) end
+	--list
+	list.Set("DesktopWindows", "CryRecordTracker", {
+		title		= "Record Tracker",
+		icon		= "icon64/nz_cry_record_tracker.png",
+		width		= 0,
+		height		= 0,
+		onewindow	= false,
+		init		= function(icon, window)
+			print(window)
 			
-			surf_DrawRect(0, 0, w, h)
+			window:Remove()
+			
+			RunConsoleCommand("nz_rectracker_gui")
 		end
-		
-		--hehehehehe cheeeese
-		chat_button.DoClick = function() RunConsoleCommand("nz_rectracker_gui") end
-	end)
+	})
 end
 
 game.AddParticles("particles/explosion_copy.pcf")
