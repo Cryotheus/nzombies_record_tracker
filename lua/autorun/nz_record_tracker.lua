@@ -447,7 +447,7 @@ elseif CLIENT then
 	end, _, false, get_lang_text("CONGRATS_COMMAND"))
 	
 	--hooks
-	hook.Add("OnScreenSizeChanged", "prog_bar_screen_res_changed_hook", calc_vars())
+	hook.Add("OnScreenSizeChanged", "prog_bar_screen_res_changed_hook", calc_vars)
 	
 	--list
 	list.Set("DesktopWindows", "CryRecordTracker", {
